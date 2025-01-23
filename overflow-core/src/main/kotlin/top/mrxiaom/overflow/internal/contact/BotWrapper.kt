@@ -258,7 +258,7 @@ internal class BotWrapper private constructor(
                     updateContacts()
 
                     //updateOtherClients()
-                    @Suppress("INVISIBLE_MEMBER")
+                    @Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
                     net.mamoe.mirai.Bot._instances[id] = this
                 }
             }

@@ -223,7 +223,7 @@ internal class GroupActiveWrapper(
     override suspend fun queryActiveRank(): List<ActiveRankRecord> {
         val data = getMemberScoreData()
 
-        @Suppress("INVISIBLE_MEMBER")
+        @Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
         return data.members.map {
             ActiveRankRecord(
                 memberId = it.uin,

@@ -1,7 +1,7 @@
 plugins {
     kotlin("jvm")
     id("org.jetbrains.dokka")
-    id("me.him188.kotlin-jvm-blocking-bridge")
+//    id("me.him188.kotlin-jvm-blocking-bridge")
 }
 
 tasks.register<Jar>("dokkaJavadocJar") {
