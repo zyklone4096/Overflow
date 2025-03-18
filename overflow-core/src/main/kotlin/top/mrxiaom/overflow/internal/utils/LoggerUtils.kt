@@ -9,7 +9,7 @@ import java.util.*
 import kotlin.reflect.KClass
 
 
-@Suppress("INVISIBLE_MEMBER")
+@Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
 internal fun MiraiLogger.subLogger(name: String): MiraiLogger {
     return net.mamoe.mirai.internal.utils.subLoggerImpl(this, name)
 }

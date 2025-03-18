@@ -194,7 +194,7 @@ internal class FolderWrapper(
         return folders().firstOrNull { it.id == id }
     }
 
-    @Suppress("INVISIBLE_MEMBER")
+    @Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
     override suspend fun uploadNewFile(
         filepath: String,
         content: ExternalResource,

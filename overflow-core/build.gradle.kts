@@ -2,7 +2,7 @@ plugins {
     kotlin("jvm")
     kotlin("plugin.serialization")
     id("org.jetbrains.dokka")
-    id("me.him188.kotlin-jvm-blocking-bridge")
+//    id("me.him188.kotlin-jvm-blocking-bridge")
     id("org.ajoberstar.grgit")
 }
 

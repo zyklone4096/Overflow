@@ -3,12 +3,12 @@ import org.ajoberstar.grgit.Grgit
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-    kotlin("jvm") version "1.8.0" apply false
-    kotlin("plugin.serialization") version "1.8.0" apply false
-    id("org.jetbrains.dokka") version "1.8.10" apply false
-    id("com.github.johnrengelman.shadow") version "7.0.0" apply false
-    id("com.github.gmazzo.buildconfig") version "3.1.0" apply false
-    id("me.him188.kotlin-jvm-blocking-bridge") version "3.0.0-180.1" apply false
+    kotlin("jvm") version "2.1.0" apply false
+    kotlin("plugin.serialization") version "2.1.0" apply false
+    id("org.jetbrains.dokka") version "2.0.0" apply false
+    id("com.gradleup.shadow") version "9.0.0-beta6" apply false
+    id("com.github.gmazzo.buildconfig") version "5.5.1" apply false
+//    id("me.him188.kotlin-jvm-blocking-bridge") version "3.1.0-182.1" apply false
     id("org.ajoberstar.grgit") version "5.2.2" apply false
 
     signing

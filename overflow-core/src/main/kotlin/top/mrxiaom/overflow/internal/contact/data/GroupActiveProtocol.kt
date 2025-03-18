@@ -500,7 +500,7 @@ internal suspend fun BotWrapper.getRawGroupActiveData(
     ).loadAs(GroupActiveData.serializer())
 }
 
-@Suppress("INVISIBLE_MEMBER")
+@Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
 internal fun GroupActiveData.MostActive.toActiveRecord(group: Group): ActiveRecord {
     return ActiveRecord(
         memberId = uin, memberName = name, periodDays = sentencesNum, messagesCount = sta, member = group.get(id = uin)
@@ -519,7 +519,7 @@ internal fun GroupActiveData.ActiveInfo.toActiveChart(): ActiveChart {
     )
 }
 
-@Suppress("INVISIBLE_MEMBER")
+@Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
 internal fun MemberHonorInfo.toActiveHonorInfo(group: Group): ActiveHonorInfo {
     return ActiveHonorInfo(
         memberName = nick,

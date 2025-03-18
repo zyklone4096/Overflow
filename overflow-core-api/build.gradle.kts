@@ -3,7 +3,7 @@ plugins {
     kotlin("plugin.serialization")
     id("org.jetbrains.dokka")
     id("com.github.gmazzo.buildconfig")
-    id("me.him188.kotlin-jvm-blocking-bridge")
+//    id("me.him188.kotlin-jvm-blocking-bridge")
 }
 
 var commitHash = extra("commitHash") ?: "local"
