@@ -16,6 +16,7 @@ import kotlinx.serialization.json.Json
 import me.him188.kotlin.jvm.blocking.bridge.JvmBlockingBridge
 import net.mamoe.mirai.*
 import net.mamoe.mirai.console.MiraiConsole
+import net.mamoe.mirai.console.internal.plugin.PluginManagerImpl
 import net.mamoe.mirai.contact.*
 import net.mamoe.mirai.data.FriendInfo
 import net.mamoe.mirai.data.MemberInfo
@@ -196,7 +197,7 @@ class Overflow : IMirai, CoroutineScope, LowLevelApiAccessor, OverflowAPI {
     @Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
     private fun injectMiraiConsole() {
         MiraiConsole.pluginManager // init
-        val pluginManager: net.mamoe.mirai.console.internal.plugin.PluginManagerImpl = MiraiConsole.pluginManager.cast()
+        val pluginManager: net.mamoe.mirai.console.internal.plugin.PluginManagerImpl = MiraiConsole.pluginManager.cast<PluginManagerImpl>()
         if (!pluginManager.resolvedPlugins.contains(OverflowCoreAsPlugin)) {
             pluginManager.resolvedPlugins.add(OverflowCoreAsPlugin)
         }
