@@ -2,6 +2,7 @@
 import org.ajoberstar.grgit.Grgit
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import moe.karla.maven.publishing.MavenPublishingExtension.PublishingType
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     // kotlin("jvm") moved to `buildSrc/build.gradle.kts`
@@ -59,7 +60,9 @@ allprojects {
     val javaVersion = "1.8"
     tasks {
         withType<KotlinCompile> {
-            kotlinOptions.jvmTarget = javaVersion
+            compilerOptions {
+                jvmTarget.set(JvmTarget.JVM_1_8)
+            }
         }
         withType<JavaCompile> {
             options.encoding = "UTF-8"

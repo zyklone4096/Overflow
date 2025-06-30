@@ -37,11 +37,13 @@ dependencies {
     api("org.apache.httpcomponents:httpclient:4.5.13")
     api("org.apache.httpcomponents:httpmime:4.5.13")
 
-    api("org.jetbrains.kotlin", "kotlin-gradle-plugin", prop["kotlin.version"].toString()) {
+    val kotlin = prop["kotlin.version"].toString()
+    api("org.jetbrains.kotlin", "kotlin-gradle-plugin", kotlin) {
         exclude("org.jetbrains.kotlin", "kotlin-stdlib")
         exclude("org.jetbrains.kotlin", "kotlin-stdlib-common")
         exclude("org.jetbrains.kotlin", "kotlin-reflect")
     }
+    api("org.jetbrains.kotlin.plugin.serialization:org.jetbrains.kotlin.plugin.serialization.gradle.plugin:$kotlin")
 }
 
 gradlePlugin {
