@@ -20,6 +20,7 @@ import net.mamoe.mirai.contact.*
 import net.mamoe.mirai.contact.announcement.Announcements
 import net.mamoe.mirai.contact.roaming.RoamingMessages
 import net.mamoe.mirai.event.broadcast
+import net.mamoe.mirai.event.events.BotLeaveEvent
 import net.mamoe.mirai.event.events.EventCancelledException
 import net.mamoe.mirai.event.events.GroupMessagePostSendEvent
 import net.mamoe.mirai.event.events.GroupMessagePreSendEvent
@@ -28,7 +29,6 @@ import net.mamoe.mirai.message.data.*
 import net.mamoe.mirai.spi.AudioToSilkService
 import net.mamoe.mirai.utils.DeprecatedSinceMirai
 import net.mamoe.mirai.utils.ExternalResource
-import net.mamoe.mirai.utils.MiraiInternalApi
 import top.mrxiaom.overflow.contact.RemoteGroup
 import top.mrxiaom.overflow.contact.RemoteUser
 import top.mrxiaom.overflow.contact.Updatable
@@ -45,7 +45,6 @@ import top.mrxiaom.overflow.spi.FileService
 import kotlin.collections.set
 import kotlin.coroutines.CoroutineContext
 
-@OptIn(MiraiInternalApi::class)
 internal class GroupWrapper(
     override val bot: BotWrapper,
     internal var impl: GroupInfoResp,
@@ -66,22 +65,38 @@ internal class GroupWrapper(
     override suspend fun updateAnnouncements(): Announcements {
         return announcements.also { it.update() }
     }
+
+    /**
+     * 请求刷新并获取群员信息。
+     */
     internal suspend fun updateMember(userId: Long): MemberWrapper? {
         val result = bot.impl.getGroupMemberInfo(id, userId, false)
         val data = result.data ?: return null
         return updateMember(data, result.json.data ?: JsonObject())
     }
+
+    /**
+     * 通过指定的 GroupMemberInfoResp 刷新并获取群员信息。
+     */
     internal fun updateMember(member: GroupMemberInfoResp, json: JsonElement): MemberWrapper {
         return (members[member.userId] ?: MemberWrapper(this, member, json).also { members.delegate.add(it) }).apply {
             impl = member
         }
     }
+
+    /**
+     * 刷新并获取匿名成员信息
+     */
     internal fun updateAnonymous(member: Anonymous): AnonymousMemberWrapper {
         return (anonymousInternal[member.flag] ?: AnonymousMemberWrapper(this, member).also { anonymousInternal[member.flag] = it }).apply {
             impl = member
         }
     }
 
+    /**
+     * 获取群员信息，或者刷新群员信息。
+     * 仅在找不到群员信息时请求刷新。
+     */
     internal suspend fun queryMember(userId: Long): MemberWrapper? {
         if (userId == bot.id) return botAsMember
         return members[userId] ?: run {
@@ -186,16 +201,19 @@ internal class GroupWrapper(
             throw IllegalStateException("机器人是群主，无法退群")
         }
         bot.impl.setGroupLeave(id, false)
+        bot.groups.remove(id)
+        bot.eventDispatcher.broadcastAsync(BotLeaveEvent.Active(this))
         return true
     }
 
     override suspend fun sendMessage(message: Message): MessageReceipt<Group> {
-        if (GroupMessagePreSendEvent(this, message).broadcast().isCancelled)
+        val event = GroupMessagePreSendEvent(this, message)
+        if (event.broadcast().isCancelled)
             throw EventCancelledException("消息发送已被取消")
         if (isBotMuted)
             throw BotIsBeingMutedException(this, message)
 
-        val messageChain = message.toMessageChain()
+        val messageChain = event.message.toMessageChain()
         val (messageIds, throwable) = bot.sendMessageCommon(this, messageChain)
         val receipt = groupMsg(messageIds, messageChain).receipt(this)
         GroupMessagePostSendEvent(
@@ -215,6 +233,21 @@ internal class GroupWrapper(
             throwExceptions(true)
         }
         return resp.data
+    }
+
+    @JvmBlockingBridge
+    override suspend fun setMsgReaction(messageId: Int, icon: String, enable: Boolean) {
+        when (bot.appName.lowercase()) {
+            "llonebot", "napcat.onebot" -> {
+                if (enable) bot.impl.extSetMsgEmojiLike(messageId, icon)
+            }
+            "go-cqhttp", "lagrange.onebot" -> {
+                bot.impl.extGroupReaction(id, messageId, icon, enable)
+            }
+            else -> {
+                bot.logger.warning("暂不支持在 ${bot.appName} 使用消息回应功能")
+            }
+        }
     }
 
     override suspend fun setEssenceMessage(source: MessageSource): Boolean {

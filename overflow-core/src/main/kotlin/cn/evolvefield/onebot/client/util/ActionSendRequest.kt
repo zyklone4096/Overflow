@@ -4,6 +4,7 @@ import cn.evolvefield.onebot.client.core.Bot
 import cn.evolvefield.onebot.sdk.util.ignorable
 import cn.evolvefield.onebot.sdk.util.ignorableArray
 import cn.evolvefield.onebot.sdk.util.ignorableObject
+import cn.evolvefield.onebot.sdk.util.nullableInt
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import kotlinx.coroutines.CompletableDeferred
@@ -27,7 +28,7 @@ import java.util.*
  * @param channel        [WebSocket]
  * @param requestTimeout Request Timeout
  */
-class ActionSendRequest(
+internal class ActionSendRequest(
     private val bot: Bot,
     private val context: ActionContext,
     parent: Job?,
@@ -45,7 +46,12 @@ class ActionSendRequest(
         val resp = mutex.withLock {
             kotlin.runCatching {
                 withTimeout(requestTimeout) {
-                    logger.debug("[Send] --> {}", req.toString())
+                    val echo = req.nullableInt("echo", null)
+                    if (echo != null) {
+                        logger.debug("[Send][$echo] --> {}", req.toString())
+                    } else {
+                        logger.debug("[Send] --> {}", req.toString())
+                    }
                     channel.send(req.toString())
                     resp.await()
                 }

@@ -4,15 +4,17 @@
 
 目前 Overflow 的开发版本发布到了 Sonatype 快照仓库。目前仅推荐使用发布在 Maven Central 中的正式版本，如有开发版本需要，请添加仓库：
 
+> 开发版本快照仓库已从 s01 迁移到 Central Snapshots，详见 [#148](https://github.com/MrXiaoM/Overflow/pull/148)
+
 ```kotlin
 repositories {
-    maven("https://s01.oss.sonatype.org/content/repositories/snapshots")
+    maven("https://central.sonatype.com/repository/maven-snapshots/")
 }
 ```
 快照仓库中依赖版本的格式为 `major.minor.patch.commits-shortHash-SNAPSHOT`，  
 示例：`0.9.9.481-d59fa60-SNAPSHOT`，详见 [#92](https://github.com/MrXiaoM/Overflow/issues/92)。
 
-你可以在 [官网](https://mirai.mrxiaom.top/#get-started) 或者 [仓库 maven-metadata.xml](https://s01.oss.sonatype.org/content/repositories/snapshots/top/mrxiaom/mirai/overflow-core/maven-metadata.xml) 查询已发布的开发版本列表。  
+你可以在 [官网](https://mirai.mrxiaom.top/#get-started) 或者 [仓库 maven-metadata.xml](https://central.sonatype.com/repository/maven-snapshots//top/mrxiaom/mirai/overflow-core/maven-metadata.xml) 查询已发布的开发版本列表。  
 
 正式发行版可在 [Maven Central](https://central.sonatype.com/search?q=g%3Atop.mrxiaom.mirai) 上查询版本号。
 
@@ -85,8 +87,6 @@ val bot2 = BotBuilder.reversed(3002)
 // connect() 返回值为 null 时登录失败
 ```
 
-多 Bot 支持当前为实验性功能，可能不稳定，**请勿**在生产环境中连接多个实例。  
-
 # 向 Onebot 发送自定义 action
 
 预设的 action 类型列表另请参见 [ActionPathEnum.kt](https://github.com/MrXiaoM/Overflow/blob/main/overflow-core/src/main/kotlin/cn/evolvefield/onebot/sdk/enums/ActionPathEnum.kt) (以下应当填写的是字符串 path 的值)
@@ -115,9 +115,10 @@ remoteGroup.updateGroupMemberList() // suspend
 
 # 资源相关消息说明
 
-正如[用户手册](/docs/UserManual.md#资源相关消息说明)所说，为减少运行内存占用，你可以使用以下方法来上传图片、语音、短视频来减少其造成的资源占用
+正如[项目进度文档](/docs/dev/progress.md#资源相关消息说明)所说，为减少运行内存占用，你可以使用以下方法来上传图片、语音、短视频来减少其造成的资源占用
 
 ```kotlin
+// 我们更推荐你使用 LocalFileService 代替，或自行实现 FileService 服务，以对业务逻辑造成尽可能低的影响
 val image = OverflowAPI.get().imageFromFile("https://xxxxx")
 val audio = OverflowAPI.get().audioFromFile("https://xxxxx")
 val video = OverflowAPI.get().videoFromFile("https://xxxxx")
@@ -129,3 +130,23 @@ val video = OverflowAPI.get().videoFromFile("https://xxxxx")
 ```
 
 为了兼容 mirai 已有的部分插件等可能已停止更新的业务逻辑，Overflow 添加了 [FileService](https://github.com/MrXiaoM/Overflow/blob/main/overflow-core-api/src/main/kotlin/top/mrxiaom/overflow/spi/FileService.kt)，使用示例另请参见 [LocalFileService](https://github.com/MrXiaoM/LocalFileService)
+
+# 群聊表情回应
+
+本功能目前支持 LLOnebot、NapCat、AstralGocq 和 Lagrange，需要 `Group` 和 `MessageSource`，用法如下：
+```kotlin
+val icon = "127874" // 表情ID
+val msgId = source.ids[0]
+group.asRemoteGroup.setMsgReaction(msgId, icon, true)
+```
+> 注: LLOnebot 和 NapCat 无法设置 `enable=false`
+
+关于表情ID，你可以通过[官方Bot文档](https://bot.q.qq.com/wiki/develop/api-v2/openapi/emoji/model.html#EmojiType)找到，你也可以从桌面版 QQNT 的数据文件夹中找到，以 Windows 为例，表情数据文件在这里。
+```
+文档/Tencent Files/nt_qq/global/nt_data/Emoji/emoji-resource/face_config.json
+```
+
++ 对于QQ自带表情，取其中的 `QSid`。例如，表情 `/赞` 是 `76`
++ 对于Emoji表情，取其中的 `QCid`。例如，表情 `👀` 是 `128064`
+
+官方Bot文档的表情没有 QQNT 客户端的多，请自行取舍表情获取方法。

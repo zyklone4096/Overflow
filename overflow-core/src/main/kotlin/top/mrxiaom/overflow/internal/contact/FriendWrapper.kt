@@ -11,6 +11,7 @@ import net.mamoe.mirai.contact.AvatarSpec
 import net.mamoe.mirai.contact.Friend
 import net.mamoe.mirai.contact.friendgroup.FriendGroup
 import net.mamoe.mirai.contact.roaming.RoamingMessages
+import net.mamoe.mirai.data.UserProfile
 import net.mamoe.mirai.event.broadcast
 import net.mamoe.mirai.event.events.EventCancelledException
 import net.mamoe.mirai.event.events.FriendMessagePostSendEvent
@@ -19,9 +20,9 @@ import net.mamoe.mirai.message.MessageReceipt
 import net.mamoe.mirai.message.data.*
 import net.mamoe.mirai.spi.AudioToSilkService
 import net.mamoe.mirai.utils.ExternalResource
-import net.mamoe.mirai.utils.MiraiInternalApi
 import top.mrxiaom.overflow.OverflowAPI
 import top.mrxiaom.overflow.contact.RemoteUser
+import top.mrxiaom.overflow.internal.data.UserProfileImpl
 import top.mrxiaom.overflow.internal.message.OnebotMessages
 import top.mrxiaom.overflow.internal.message.data.OutgoingSource.friendMsg
 import top.mrxiaom.overflow.internal.message.data.OutgoingSource.receipt
@@ -59,12 +60,25 @@ internal class FriendWrapper(
         return avatar ?: super.avatarUrl(spec)
     }
 
-    @OptIn(MiraiInternalApi::class)
+    override suspend fun queryProfile(): UserProfile {
+        val reference = super.queryProfile()
+        return UserProfileImpl(
+            age = Math.max(reference.age, impl.age),
+            email = impl.email.takeIf { it.isNotEmpty() } ?: reference.email,
+            friendGroupId = reference.friendGroupId,
+            nickname = nick,
+            qLevel = Math.max(reference.qLevel, impl.level),
+            sex = reference.sex,
+            sign = reference.sign
+        )
+    }
+
     override suspend fun sendMessage(message: Message): MessageReceipt<Friend> {
-        if (FriendMessagePreSendEvent(this, message).broadcast().isCancelled)
+        val event = FriendMessagePreSendEvent(this, message)
+        if (event.broadcast().isCancelled)
             throw EventCancelledException("消息发送已被取消")
 
-        val messageChain = message.toMessageChain()
+        val messageChain = event.message.toMessageChain()
         val (messageIds, throwable) = bot.sendMessageCommon(this, messageChain)
         val receipt = friendMsg(messageIds, messageChain).receipt(this)
         FriendMessagePostSendEvent(
@@ -80,7 +94,7 @@ internal class FriendWrapper(
     }
 
     override suspend fun sendToOnebot(message: String): MsgId? {
-        val resp = bot.impl.sendPrivateMsg(id, message, false) {
+        val resp = bot.impl.sendPrivateMsg(id, null, message, false) {
             throwExceptions(true)
         }
         return resp.data

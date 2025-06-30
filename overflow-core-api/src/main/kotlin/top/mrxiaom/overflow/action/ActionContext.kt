@@ -1,6 +1,7 @@
 package top.mrxiaom.overflow.action
 
 import kotlinx.serialization.Serializable
+import java.util.function.Consumer
 
 /**
  * Onebot 主动操作上下文
@@ -56,7 +57,16 @@ data class ActionContext(
             context.ignoreStatus = flag
         }
 
-        fun build(): ActionContext = context
+        /**
+         * 构建一个新的 ActionContext
+         */
+        fun build(): ActionContext {
+            return ActionContext(
+                action = context.action,
+                throwExceptions = context.throwExceptions,
+                ignoreStatus = context.ignoreStatus
+            )
+        }
 
         companion object {
             fun create(action: String): Builder = Builder(action)
@@ -65,5 +75,23 @@ data class ActionContext(
     companion object {
         @JvmStatic
         fun builder(action: String): Builder = Builder.create(action)
+
+        fun builder(action: String, block: Builder.() -> Unit): Builder = builder(action).apply(block)
+
+        fun build(action: String, block: Builder.() -> Unit): ActionContext = builder(action).apply(block).build()
+
+        @JvmStatic
+        fun builder(action: String, block: Consumer<Builder>): Builder {
+            val builder = builder(action)
+            block.accept(builder)
+            return builder
+        }
+
+        @JvmStatic
+        fun build(action: String, block: Consumer<Builder>): ActionContext {
+            val builder = builder(action)
+            block.accept(builder)
+            return builder.build()
+        }
     }
 }

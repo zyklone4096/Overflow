@@ -11,6 +11,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import net.mamoe.mirai.contact.*
 import net.mamoe.mirai.contact.active.MemberActive
+import net.mamoe.mirai.data.UserProfile
 import net.mamoe.mirai.event.broadcast
 import net.mamoe.mirai.event.events.EventCancelledException
 import net.mamoe.mirai.event.events.GroupTempMessagePostSendEvent
@@ -20,7 +21,6 @@ import net.mamoe.mirai.message.MessageReceipt
 import net.mamoe.mirai.message.action.MemberNudge
 import net.mamoe.mirai.message.data.*
 import net.mamoe.mirai.utils.ExternalResource
-import net.mamoe.mirai.utils.MiraiInternalApi
 import net.mamoe.mirai.utils.currentTimeSeconds
 import top.mrxiaom.overflow.Overflow
 import top.mrxiaom.overflow.contact.RemoteUser
@@ -28,6 +28,7 @@ import top.mrxiaom.overflow.contact.Updatable
 import top.mrxiaom.overflow.internal.check
 import top.mrxiaom.overflow.internal.contact.data.EmptyMemberActive
 import top.mrxiaom.overflow.internal.contact.data.MemberActiveWrapper
+import top.mrxiaom.overflow.internal.data.UserProfileImpl
 import top.mrxiaom.overflow.internal.message.OnebotMessages
 import top.mrxiaom.overflow.internal.message.data.OutgoingSource.receipt
 import top.mrxiaom.overflow.internal.message.data.OutgoingSource.tempMsg
@@ -35,7 +36,6 @@ import top.mrxiaom.overflow.internal.scope
 import top.mrxiaom.overflow.spi.FileService
 import kotlin.coroutines.CoroutineContext
 
-@OptIn(MiraiInternalApi::class)
 internal class MemberWrapper(
     override val group: GroupWrapper,
     internal var impl: GroupMemberInfoResp,
@@ -67,6 +67,19 @@ internal class MemberWrapper(
         return avatar ?: super.avatarUrl(spec)
     }
 
+    override suspend fun queryProfile(): UserProfile {
+        val reference = super.queryProfile()
+        return UserProfileImpl(
+            age = Math.max(reference.age, impl.age),
+            email = reference.email,
+            friendGroupId = reference.friendGroupId,
+            nickname = nick,
+            qLevel = Math.max(reference.qLevel, impl.qqLevel),
+            sex = reference.sex,
+            sign = reference.sign
+        )
+    }
+
     override val active: MemberActiveWrapper = MemberActiveWrapper(this)
     override val id: Long = impl.userId
     override val joinTimestamp: Int
@@ -83,8 +96,12 @@ internal class MemberWrapper(
             if (id != bot.id) {
                 group.checkBotPermission(MemberPermission.ADMINISTRATOR)
             }
-            Overflow.scope.launch {
-                bot.impl.setGroupCard(impl.groupId, id, value)
+            if (impl.card != value) {
+                impl.card = value
+                Overflow.scope.launch {
+                    bot.impl.setGroupCard(impl.groupId, id, value)
+                    group.updateMember(id)
+                }
             }
         }
     override val nick: String
@@ -100,8 +117,13 @@ internal class MemberWrapper(
     override var specialTitle: String
         get() = impl.title
         set(value) {
-            Overflow.scope.launch {
-                bot.impl.setGroupSpecialTitle(impl.groupId, id, value, -1)
+            group.checkBotPermission(MemberPermission.OWNER)
+            if (impl.title != value) {
+                impl.title = value
+                Overflow.scope.launch {
+                    bot.impl.setGroupSpecialTitle(impl.groupId, id, value, -1)
+                    group.updateMember(id)
+                }
             }
         }
     override suspend fun kick(message: String, block: Boolean) {
@@ -115,12 +137,25 @@ internal class MemberWrapper(
         }
     }
 
+    /**
+     * 给予或移除群成员的管理员权限.
+     *
+     * 此操作需要Bot为[群主][MemberPermission.OWNER].
+     * @param operation true表示给予，false表示移除.
+     * @throws IllegalStateException 当管理员人数已满或oneBot端返回 failed 时.
+     */
     override suspend fun modifyAdmin(operation: Boolean) {
         checkBotPermissionHighest("设置管理员")
+        val failedGrant = "Failed to grant administrator privileges to member ${id} in group ${impl.groupId}: msg=the number of administrators is already full"
         if (bot.impl.setGroupAdmin(impl.groupId, id, operation)
             .check("设置 $id 在群聊 ${group.id} 的管理员状态为 $operation")) {
             impl.role = if (operation) "admin" else "member"
+            if (operation) {
+                queryUpdate()
+                if (permission != MemberPermission.ADMINISTRATOR) throw IllegalStateException(failedGrant)
+            }
         }
+        else throw IllegalStateException("Error: onebot setGroupAdmin check failed in group ${impl.groupId}: memberId=${id}, operation=${operation}")
     }
 
     override suspend fun mute(durationSeconds: Int) {
@@ -155,12 +190,12 @@ internal class MemberWrapper(
         return sendMessage(PlainText(message))
     }
 
-    @OptIn(MiraiInternalApi::class)
     override suspend fun sendMessage(message: Message): MessageReceipt<NormalMember> {
-        if (GroupTempMessagePreSendEvent(this, message).broadcast().isCancelled)
+        val event = GroupTempMessagePreSendEvent(this, message)
+        if (event.broadcast().isCancelled)
             throw EventCancelledException("消息发送已被取消")
 
-        val messageChain = message.toMessageChain()
+        val messageChain = event.message.toMessageChain()
         val (messageIds, throwable) = bot.sendMessageCommon(this, messageChain)
         val receipt = tempMsg(messageIds, messageChain).receipt(this)
         GroupTempMessagePostSendEvent(
@@ -176,7 +211,7 @@ internal class MemberWrapper(
     }
 
     override suspend fun sendToOnebot(message: String): MsgId? {
-        val resp = bot.impl.sendPrivateMsg(id, message, false) {
+        val resp = bot.impl.sendPrivateMsg(id, group.id, message, false) {
             throwExceptions(true)
         }
         return resp.data

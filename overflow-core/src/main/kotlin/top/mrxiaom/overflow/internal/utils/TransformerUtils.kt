@@ -1,4 +1,3 @@
-@file:OptIn(MiraiInternalApi::class)
 package top.mrxiaom.overflow.internal.utils
 
 import cn.evolvefield.onebot.sdk.entity.Anonymous
@@ -14,7 +13,6 @@ import cn.evolvefield.onebot.sdk.util.data
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import net.mamoe.mirai.contact.*
-import net.mamoe.mirai.utils.MiraiInternalApi
 import net.mamoe.mirai.utils.hexToBytes
 import top.mrxiaom.overflow.contact.RemoteBot
 import top.mrxiaom.overflow.internal.contact.*
@@ -43,19 +41,16 @@ internal fun GroupMemberInfoResp.wrapAsMember(group: Group, json: JsonElement): 
     return (group as GroupWrapper).updateMember(this, json)
 }
 
-internal fun GroupSender.wrapAsMember(group: Group, json: JsonElement): MemberWrapper {
-    return GroupMemberInfoResp().also {
-        it.groupId = group.id
-        it.userId = userId.toLong()
+internal suspend fun GroupSender.wrapAsMember(group: GroupWrapper): MemberWrapper? {
+    val member = group.queryMember(userId.toLong())
+    member?.impl?.also {
         it.nickname = nickname
         it.card = card
-        it.sex = sex
-        it.age = age
-        it.area = area
-        it.level = level.toIntOrNull() ?: 0
-        it.role = role
-        it.title = title
-    }.wrapAsMember(group, json)
+        if (it.role.isEmpty()) {
+            it.role = role // sender.role 可能不可信 #139
+        }
+    }
+    return member
 }
 
 internal fun Anonymous.wrapAsMember(group: Group): AnonymousMemberWrapper {
@@ -66,7 +61,9 @@ internal suspend fun BotWrapper.group(groupId: Long): GroupWrapper {
     return getGroup(groupId) as? GroupWrapper ?: kotlin.run {
         val result = impl.getGroupInfo(groupId, false)
         val data = result.data ?: throw IllegalStateException("无法取得群 $groupId 的信息")
-        updateGroup(GroupWrapper(this, data, result.json.data ?: JsonObject()))
+        val group = GroupWrapper(this, data, result.json.data ?: JsonObject())
+        group.updateGroupMemberList()
+        updateGroup(group)
     }
 }
 
@@ -75,7 +72,8 @@ internal fun PrivateSender.wrapAsFriend(bot: BotWrapper, json: JsonElement): Fri
     return bot.updateFriend(FriendWrapper(bot, FriendInfoResp().also {
         it.userId = userId
         it.nickname = nickname
-        it.remark = ""
+        it.sex = sex
+        it.age = age
     }, json))
 }
 
@@ -86,13 +84,16 @@ internal fun StrangerInfoResp.wrapAsStranger(bot: BotWrapper, json: JsonElement)
 internal fun PrivateSender.wrapAsStranger(bot: BotWrapper, json: JsonElement): StrangerWrapper {
     val id = userId
     val nick = nickname
+    val priSex = sex
+    val priAge = age
     return StrangerInfoResp().apply {
         userId = id
         nickname = nick
+        sex = priSex
+        age = priAge
     }.wrapAsStranger(bot, json)
 }
 
-@OptIn(MiraiInternalApi::class)
 internal fun ClientsResp.Clients.wrapAsOtherClientInfo(): OtherClientInfo {
     val platform = Platform.getByTerminalId(loginPlatform.toInt())
     return OtherClientInfo(appId.toInt(), platform, deviceName, deviceKind)

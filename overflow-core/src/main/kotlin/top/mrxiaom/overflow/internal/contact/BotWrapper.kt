@@ -13,7 +13,6 @@ import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import kotlinx.coroutines.*
 import me.him188.kotlin.jvm.blocking.bridge.JvmBlockingBridge
-import net.mamoe.mirai.LowLevelApi
 import net.mamoe.mirai.Mirai
 import net.mamoe.mirai.contact.*
 import net.mamoe.mirai.event.EventChannel
@@ -26,6 +25,7 @@ import net.mamoe.mirai.message.data.MessageChain
 import net.mamoe.mirai.supervisorJob
 import net.mamoe.mirai.utils.*
 import org.java_websocket.framing.CloseFrame
+import top.mrxiaom.overflow.action.ActionContext
 import top.mrxiaom.overflow.contact.RemoteBot
 import top.mrxiaom.overflow.contact.RemoteUser
 import top.mrxiaom.overflow.contact.Updatable
@@ -41,7 +41,6 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.cancellation.CancellationException
 
 @Suppress("MemberVisibilityCanBePrivate")
-@OptIn(MiraiInternalApi::class, LowLevelApi::class)
 internal class BotWrapper private constructor(
     private var implBot: Bot,
     defLoginInfo: LoginInfoResp,
@@ -85,7 +84,11 @@ internal class BotWrapper private constructor(
             val json = groupsJson.firstOrNull { groupJson ->
                 groupJson.jsonObject?.ignorable("group_id", 0L) == group.groupId
             } ?: JsonObject()
-            GroupWrapper(this, group, json)
+            GroupWrapper(this, group, json).also {
+                if (!groupsInternal.contains(it.id)) {
+                    it.updateGroupMemberList()
+                }
+            }
         }
         groupsInternal.update(groupsList) { impl = it.impl }
         logger.verbose("${groups.size} groups loaded.")
@@ -153,8 +156,7 @@ internal class BotWrapper private constructor(
                     logger.info { "Bot cancelled" + throwable?.message?.let { ": $it" }.orEmpty() }
 
                     kotlin.runCatching {
-                        val bot = bot
-                        if (bot is BotWrapper && bot.impl.channel.isOpen) {
+                        if (bot.impl.channel.isOpen) {
                             bot.close()
                         }
                     }.onFailure {
@@ -220,6 +222,11 @@ internal class BotWrapper private constructor(
     @JvmBlockingBridge
     override suspend fun executeAction(actionPath: String, params: String?): String {
         return impl.customRequest(actionPath, params).toString()
+    }
+
+    @JvmBlockingBridge
+    override suspend fun executeAction(context: ActionContext, params: String?): String {
+        return impl.customRequest(params, context).toString()
     }
 
     override fun sendRawWebSocketMessage(message: String) {

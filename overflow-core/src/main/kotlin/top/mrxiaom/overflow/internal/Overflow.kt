@@ -48,10 +48,10 @@ import top.mrxiaom.overflow.internal.data.asOnebot
 import top.mrxiaom.overflow.internal.listener.addBotListeners
 import top.mrxiaom.overflow.internal.listener.addFriendListeners
 import top.mrxiaom.overflow.internal.listener.addGroupListeners
-import top.mrxiaom.overflow.internal.listener.addGuildListeners
 import top.mrxiaom.overflow.internal.message.OnebotMessages
 import top.mrxiaom.overflow.internal.message.data.*
 import top.mrxiaom.overflow.internal.plugin.OverflowCoreAsPlugin
+import top.mrxiaom.overflow.internal.utils.RequestManager
 import top.mrxiaom.overflow.internal.utils.group
 import top.mrxiaom.overflow.internal.utils.wrapAsOtherClientInfo
 import top.mrxiaom.overflow.spi.MediaURLService
@@ -72,15 +72,14 @@ internal fun ActionRaw.check(failMsg: String): Boolean {
     return retCode == 0
 }
 
-@OptIn(MiraiExperimentalApi::class, MiraiInternalApi::class, LowLevelApi::class)
 class Overflow : IMirai, CoroutineScope, LowLevelApiAccessor, OverflowAPI {
     override val coroutineContext: CoroutineContext = CoroutineName("overflow")
     override val BotFactory: BotFactory
         get() = BotFactoryImpl
     override var FileCacheStrategy: FileCacheStrategy = net.mamoe.mirai.utils.FileCacheStrategy.PlatformDefault
-    private val newFriendRequestFlagMap = mutableMapOf<Long, String>()
-    private val newMemberJoinRequestFlagMap = mutableMapOf<Long, String>()
-    private val newInviteJoinGroupRequestFlagMap = mutableMapOf<Long, String>()
+    private val newFriendRequest = RequestManager()
+    private val newMemberJoinRequest = RequestManager()
+    private val newInviteJoinGroupRequest = RequestManager()
     private var miraiConsoleFlag: Boolean = false
     val startupTime = System.currentTimeMillis()
     val miraiConsole: Boolean
@@ -177,7 +176,6 @@ class Overflow : IMirai, CoroutineScope, LowLevelApiAccessor, OverflowAPI {
         EventBus.clear()
         addGroupListeners()
         addFriendListeners()
-        addGuildListeners()
         addBotListeners()
 
         // 暂定禁止 mirai-console 的终端用户须知，它可能已不适用于 Overflow
@@ -314,6 +312,7 @@ class Overflow : IMirai, CoroutineScope, LowLevelApiAccessor, OverflowAPI {
             noPlatform: Boolean,
             useCQCode: Boolean,
             useGroupUploadEventForFileMessage: Boolean,
+            dropEventsBeforeConnected: Boolean,
             logger: Logger?,
             parentJob: Job?,
             configuration: BotConfiguration,
@@ -327,6 +326,7 @@ class Overflow : IMirai, CoroutineScope, LowLevelApiAccessor, OverflowAPI {
                 noPlatform = noPlatform,
                 useCQCode = useCQCode,
                 useGroupUploadEventForFileMessage = useGroupUploadEventForFileMessage,
+                dropEventsBeforeConnected = dropEventsBeforeConnected,
                 retryTimes = retryTimes,
                 retryWaitMills = retryWaitMills,
                 retryRestMills = retryRestMills,
@@ -399,31 +399,14 @@ class Overflow : IMirai, CoroutineScope, LowLevelApiAccessor, OverflowAPI {
     }
 
     override suspend fun queryProfile(bot: Bot, targetId: Long): UserProfile {
-        if (bot.asOnebot.appName == "shamrock") {
-            val data = bot.asOnebot.impl.getUserInfo(targetId, false).data
-                ?: throw IllegalStateException("Can not fetch profile card.")
-            val strangerInfo = bot.asOnebot.impl.getStrangerInfo(targetId, false).data
-            val sex = when (strangerInfo?.sex?.lowercase() ?: "") {
-                "male" -> UserProfile.Sex.MALE
-                "female" -> UserProfile.Sex.FEMALE
-                else -> UserProfile.Sex.UNKNOWN
-            }
-
-            val age = strangerInfo?.age ?:
-            // TODO: 不确定 birthday 的单位是毫秒还是秒
-            if (data.birthday > 0) ((currentTimeSeconds() - data.birthday) / 365.daysToSeconds).toInt() else 0
-
-            return UserProfileImpl(age, data.mail, 0, data.name, data.level, sex, data.hobbyEntry)
-        } else {
-            val data = bot.asOnebot.impl.getStrangerInfo(targetId, false).data
-                ?: throw IllegalStateException("Can not fetch stranger info (profile card).")
-            val sex = when (data.sex.lowercase()) {
-                "male" -> UserProfile.Sex.MALE
-                "female" -> UserProfile.Sex.FEMALE
-                else -> UserProfile.Sex.UNKNOWN
-            }
-            return UserProfileImpl(data.age, "", 0, data.nickname, data.level, sex, "")
+        val data = bot.asOnebot.impl.getStrangerInfo(targetId, false).data
+            ?: throw IllegalStateException("Can not fetch stranger info (profile card).")
+        val sex = when (data.sex.lowercase()) {
+            "male" -> UserProfile.Sex.MALE
+            "female" -> UserProfile.Sex.FEMALE
+            else -> UserProfile.Sex.UNKNOWN
         }
+        return UserProfileImpl(data.age, data.email, data.friendGroupId, data.nickname, data.level, sex, data.sign)
     }
 
     override suspend fun getOnlineOtherClientsList(bot: Bot, mayIncludeSelf: Boolean): List<OtherClientInfo> {
@@ -507,7 +490,12 @@ class Overflow : IMirai, CoroutineScope, LowLevelApiAccessor, OverflowAPI {
         groupCode: Long,
         ownerId: Long
     ): Sequence<MemberInfo> {
-        return bot.asOnebot.impl.getGroupMemberList(groupUin).data.map { it.asMirai }.asSequence()
+        return bot.asOnebot.impl.getGroupMemberList(groupCode).data.map { it.asMirai }.asSequence()
+    }
+
+    override fun getUin(contactOrBot: ContactOrBot): Long {
+        // 对于 Onebot 实现，不需要重新计算群 uin (#161)
+        return contactOrBot.id
     }
 
     @LowLevelApi
@@ -596,10 +584,10 @@ class Overflow : IMirai, CoroutineScope, LowLevelApiAccessor, OverflowAPI {
         }
         // go-cqhttp
         val msg = "[{\"type\":\"poke\",\"data\":{\"id\":${nudge.target.id}}}]"
-        if (receiver is Group) {
-            onebot.impl.sendGroupMsg(receiver.id, msg, false)
-        } else {
-            onebot.impl.sendPrivateMsg(receiver.id, msg, false)
+        when (receiver) {
+            is Group -> onebot.impl.sendGroupMsg(receiver.id, msg, false)
+            is Member -> onebot.impl.sendPrivateMsg(receiver.id, receiver.group.id, msg, false)
+            is Friend -> onebot.impl.sendPrivateMsg(receiver.id, null, msg, false)
         }
         return true
     }
@@ -607,11 +595,7 @@ class Overflow : IMirai, CoroutineScope, LowLevelApiAccessor, OverflowAPI {
 
     //========== Bot Invited Join Group Request 邀请机器人加群请求 START =============
     fun putInventedJoinGroupRequestFlag(flag: String): Long {
-        var eventId = newInviteJoinGroupRequestFlagMap.size.toLong()
-        while (newInviteJoinGroupRequestFlagMap.containsKey(eventId)) {
-            eventId++
-        }
-        return eventId.also { newInviteJoinGroupRequestFlagMap[it] = flag }
+        return newInviteJoinGroupRequest.put(flag)
     }
 
     override suspend fun acceptInvitedJoinGroupRequest(event: BotInvitedJoinGroupRequestEvent) {
@@ -630,13 +614,9 @@ class Overflow : IMirai, CoroutineScope, LowLevelApiAccessor, OverflowAPI {
         groupId: Long,
         accept: Boolean
     ) {
-        newInviteJoinGroupRequestFlagMap[eventId]?.also {
-            val resp = bot.asOnebot.impl.setGroupAddRequest(it, "invite", accept, "")
-            if (accept && resp.status == "ok") {
-                val group = bot.asOnebot.group(groupId)
-                val invitor = group.queryMember(invitorId) ?: return
-                BotJoinGroupEvent.Invite(invitor).broadcast()
-            }
+        newInviteJoinGroupRequest.get(eventId)?.also {
+            val onebot = bot.asOnebot
+            val resp = onebot.impl.setGroupAddRequest(it, "invite", accept, "")
         }
     }
     //========== Bot Invited Join Group Request 邀请机器人加群请求 END =============
@@ -644,11 +624,7 @@ class Overflow : IMirai, CoroutineScope, LowLevelApiAccessor, OverflowAPI {
 
     //========== Member Join Request 加群申请 START =============
     fun putMemberJoinRequestFlag(flag: String): Long {
-        var eventId = newMemberJoinRequestFlagMap.size.toLong()
-        while (newMemberJoinRequestFlagMap.containsKey(eventId)) {
-            eventId++
-        }
-        return eventId.also { newMemberJoinRequestFlagMap[it] = flag }
+        return newMemberJoinRequest.put(flag)
     }
 
     override suspend fun acceptMemberJoinRequest(event: MemberJoinRequestEvent) {
@@ -705,7 +681,7 @@ class Overflow : IMirai, CoroutineScope, LowLevelApiAccessor, OverflowAPI {
             // TODO 忽略加群请求
             return
         }
-        newMemberJoinRequestFlagMap[eventId]?.also {
+        newMemberJoinRequest.get(eventId)?.also {
             bot.asOnebot.impl.setGroupAddRequest(it, "add", accept, message)
         }
     }
@@ -714,11 +690,7 @@ class Overflow : IMirai, CoroutineScope, LowLevelApiAccessor, OverflowAPI {
 
     //========== New Friend Request 新好友请求 START =============
     fun putNewFriendRequestFlag(flag: String): Long {
-        var eventId = newFriendRequestFlagMap.size.toLong()
-        while (newFriendRequestFlagMap.containsKey(eventId)) {
-            eventId++
-        }
-        return eventId.also { newFriendRequestFlagMap[it] = flag }
+        return newFriendRequest.put(flag)
     }
 
     override suspend fun acceptNewFriendRequest(event: NewFriendRequestEvent) {
@@ -745,7 +717,7 @@ class Overflow : IMirai, CoroutineScope, LowLevelApiAccessor, OverflowAPI {
         accept: Boolean,
         blackList: Boolean
     ) {
-        newFriendRequestFlagMap[eventId]?.also {
+        newFriendRequest.get(eventId)?.also {
             bot.asOnebot.impl.setFriendAddRequest(it, accept, "")
         }
     }

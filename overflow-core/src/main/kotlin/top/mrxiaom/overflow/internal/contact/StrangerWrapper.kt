@@ -19,7 +19,6 @@ import net.mamoe.mirai.message.data.Message
 import net.mamoe.mirai.message.data.ShortVideo
 import net.mamoe.mirai.message.data.toMessageChain
 import net.mamoe.mirai.utils.ExternalResource
-import net.mamoe.mirai.utils.MiraiInternalApi
 import top.mrxiaom.overflow.OverflowAPI
 import top.mrxiaom.overflow.contact.RemoteUser
 import top.mrxiaom.overflow.internal.message.OnebotMessages
@@ -56,12 +55,12 @@ internal class StrangerWrapper(
         return avatar ?: super.avatarUrl(spec)
     }
 
-    @OptIn(MiraiInternalApi::class)
     override suspend fun sendMessage(message: Message): MessageReceipt<Stranger> {
-        if (StrangerMessagePreSendEvent(this, message).broadcast().isCancelled)
+        val event = StrangerMessagePreSendEvent(this, message)
+        if (event.broadcast().isCancelled)
             throw EventCancelledException("消息发送已被取消")
 
-        val messageChain = message.toMessageChain()
+        val messageChain = event.message.toMessageChain()
         val (messageIds, throwable) = bot.sendMessageCommon(this, messageChain)
         val receipt = strangerMsg(messageIds, messageChain).receipt(this)
         StrangerMessagePostSendEvent(
@@ -77,7 +76,7 @@ internal class StrangerWrapper(
     }
 
     override suspend fun sendToOnebot(message: String): MsgId? {
-        val resp = bot.impl.sendPrivateMsg(id, message, false) {
+        val resp = bot.impl.sendPrivateMsg(id, null, message, false) {
             throwExceptions(true)
         }
         return resp.data

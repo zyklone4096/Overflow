@@ -2,7 +2,6 @@ package cn.evolvefield.onebot.client.util
 
 import cn.evolvefield.onebot.sdk.event.Event
 import cn.evolvefield.onebot.sdk.event.message.GroupMessageEvent
-import cn.evolvefield.onebot.sdk.event.message.GuildMessageEvent
 import cn.evolvefield.onebot.sdk.event.message.PrivateMessageEvent
 import cn.evolvefield.onebot.sdk.event.meta.HeartbeatMetaEvent
 import cn.evolvefield.onebot.sdk.event.meta.LifecycleMetaEvent
@@ -10,10 +9,8 @@ import cn.evolvefield.onebot.sdk.event.notice.NotifyNoticeEvent
 import cn.evolvefield.onebot.sdk.event.notice.friend.FriendAddNoticeEvent
 import cn.evolvefield.onebot.sdk.event.notice.friend.PrivateMsgDeleteNoticeEvent
 import cn.evolvefield.onebot.sdk.event.notice.group.*
-import cn.evolvefield.onebot.sdk.event.notice.guild.ChannelCreatedNoticeEvent
-import cn.evolvefield.onebot.sdk.event.notice.guild.ChannelDestroyedNoticeEvent
-import cn.evolvefield.onebot.sdk.event.notice.guild.ChannelUpdateNoticeEvent
-import cn.evolvefield.onebot.sdk.event.notice.guild.MessageReactionsUpdatedNoticeEvent
+import cn.evolvefield.onebot.sdk.event.notice.misc.GroupMsgEmojiLikeNotice
+import cn.evolvefield.onebot.sdk.event.notice.misc.GroupReactionNotice
 import cn.evolvefield.onebot.sdk.event.notice.misc.ReceiveOfflineFilesNoticeEvent
 import cn.evolvefield.onebot.sdk.event.request.FriendAddRequestEvent
 import cn.evolvefield.onebot.sdk.event.request.GroupAddRequestEvent
@@ -33,7 +30,6 @@ object ListenerUtils {
         "groupMessage" to GroupMessageEvent::class,
         "privateMessage" to PrivateMessageEvent::class,
         "wholeMessage" to GroupMessageEvent::class,
-        "guildMessage" to GuildMessageEvent::class,
 
         "friend" to FriendAddRequestEvent::class,
         "group" to GroupAddRequestEvent::class,
@@ -55,10 +51,10 @@ object ListenerUtils {
         "essence" to GroupEssenceNoticeEvent::class,
         "offline_file" to ReceiveOfflineFilesNoticeEvent::class,
 
-        "channel_created" to ChannelCreatedNoticeEvent::class,
-        "channel_destroyed" to ChannelDestroyedNoticeEvent::class,
-        "channel_updated" to ChannelUpdateNoticeEvent::class,
-        "message_reactions_updated" to MessageReactionsUpdatedNoticeEvent::class,
+        // LLOnebot, NapCat
+        "group_msg_emoji_like" to GroupMsgEmojiLikeNotice::class,
+        // Lagrange
+        "reaction" to GroupReactionNotice::class,
 
         "lifecycle" to LifecycleMetaEvent::class,
         "heartbeat" to HeartbeatMetaEvent::class,

@@ -4,7 +4,6 @@ import kotlinx.coroutines.runBlocking
 import net.mamoe.mirai.contact.GroupSettings
 import net.mamoe.mirai.contact.MemberPermission
 import net.mamoe.mirai.contact.checkBotPermission
-import net.mamoe.mirai.utils.MiraiExperimentalApi
 import top.mrxiaom.overflow.internal.contact.GroupWrapper
 
 internal class GroupSettingsWrapper(
@@ -28,11 +27,14 @@ internal class GroupSettingsWrapper(
             group.bot.impl.setGroupAnonymous(group.id, value)
         }
 
-    @MiraiExperimentalApi
     override val isAutoApproveEnabled: Boolean
         get() = false // TODO: Not yet implemented
 
-    internal var muteAll: Boolean = false
+    internal var muteAll: Boolean
+        get() = group.impl.groupAllShut == -1
+        set(value) {
+            group.impl.groupAllShut = if (value) -1 else 0
+        }
     override var isMuteAll: Boolean
         get() = muteAll
         set(value) = runBlocking {
